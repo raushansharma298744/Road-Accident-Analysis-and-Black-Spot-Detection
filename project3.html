@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Road Accident Analysis & Black Spot Detection</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            color: white;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            padding: 1rem 1.5rem;
+            border: none;
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .stats-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+        }
+        
+        .table tbody tr:hover {
+            background: rgba(102, 126, 234, 0.05);
+        }
+        
+        #map {
+            height: 500px;
+            border-radius: 10px;
+            width: 100%;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        
+        .custom-marker {
+            background: transparent !important;
+            border: none !important;
+        }
+        
+        .leaflet-container {
+            background-color: #f8f9fa !important;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 1rem 0;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <div class="header">
+        <div class="container">
+            <h1>Road Accident Analysis & Black Spot Detection</h1>
+           
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- File Upload Section -->
+        <div class="card">
+            <div class="card-header">
+                <h5>Upload Accident Dataset</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="csvFile" class="form-label">Select CSV File:</label>
+                            <input type="file" class="form-control" id="csvFile" accept=".csv">
+                            <small class="form-text text-muted">Upload CSV with columns: City, Outcome, Count</small>
+                        </div>
+                        <button class="btn btn-primary" onclick="analyzeData()">Analyze Data</button>
+                    </div>
+                    
+                </div>
+                <div id="uploadMessage"></div>
+            </div>
+        </div>
+
+        <!-- Statistics Section -->
+        <div class="card" id="statsSection" style="display: none;">
+            <div class="card-header">
+                <h5>Analysis Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="statsContainer">
+                    <!-- Stats will be populated here -->
+                </div>
+                <div class="mt-3">
+                    
+                </div>
+            </div>
+        </div>
+
+        <!-- Algorithm Controls -->
+        <div class="card" id="controlsSection" style="display: none;">
+            <div class="card-header">
+                <h5>Algorithm Controls</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label">Sorting Algorithm:</label>
+                        <select class="form-select" id="sortAlgo" onchange="changeSortAlgorithm()">
+                            <option value="bubble">Bubble Sort</option>
+                            <option value="quick">Quick Sort</option>
+                            <option value="merge">Merge Sort</option>
+                            <option value="heap">Heap Sort</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Sort By:</label>
+                        <select class="form-select" id="sortBy" onchange="sortData()">
+                            <option value="riskScore">Risk Score</option>
+                            <option value="fatalities">Fatalities</option>
+                            <option value="accidents">Accidents</option>
+                            <option value="injuries">Injuries</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">Try different algorithms to see performance differences</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Black Spot Analysis Section -->
+        <div class="card" id="blackSpotSection" style="display: none;">
+            <div class="card-header" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">
+                <h5><i class="fas fa-exclamation-triangle"></i> Black Spot Analysis</h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="blackSpotStats">
+                    <!-- Black spot statistics will be populated here -->
+                </div>
+                
+                <div class="mt-4">
+                    <h6><i class="fas fa-skull-crossbones"></i> Critical Black Spots (Immediate Action Required)</h6>
+                    <div class="table-responsive">
+                        <table class="table table-danger table-striped" id="criticalTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>City</th>
+                                    <th>Accidents</th>
+                                    <th>Fatalities</th>
+                                    <th>Injuries</th>
+                                    <th>Risk Score</th>
+                                    <th>Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody id="criticalBody">
+                                <!-- Critical black spots will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h6><i class="fas fa-exclamation-circle"></i> High Risk Areas (Priority Intervention Needed)</h6>
+                    <div class="table-responsive">
+                        <table class="table table-warning table-striped" id="highRiskTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>City</th>
+                                    <th>Accidents</th>
+                                    <th>Fatalities</th>
+                                    <th>Injuries</th>
+                                    <th>Risk Score</th>
+                                    <th>Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody id="highRiskBody">
+                                <!-- High risk areas will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="card" id="tableSection" style="display: none;">
+            <div class="card-header">
+                <h5>Complete Analysis Results</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>City</th>
+                                <th>Accidents</th>
+                                <th>Fatalities</th>
+                                <th>Injuries</th>
+                                <th>Risk Score</th>
+                                <th>Risk Level</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">Risk score calculated as: (accidents*0.4 + fatalities*0.4 + injuries*0.2)</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="card" id="chartsSection" style="display: none;">
+            <div class="card-header">
+                <h5>Risk Distribution Analysis</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="riskChart"></canvas>
+                </div>
+                
+                <!-- Detailed Analysis Section -->
+                <div class="mt-4">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="alert alert-primary">
+                                <h6><i class="fas fa-chart-pie"></i> Risk Distribution Analysis</h6>
+                                <p class="mb-2">This chart shows how cities are distributed across different risk levels based on our weighted risk calculation algorithm.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="card border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0">Risk Calculation Formula</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Risk Score = (Accidents × 0.4) + (Fatalities × 0.4) + (Injuries × 0.2)</strong></p>
+                                    <small class="text-muted">
+                                        • Accidents: 40% weight (most frequent indicator)<br>
+                                        • Fatalities: 40% weight (most severe consequence)<br>
+                                        • Injuries: 20% weight (moderate severity)
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card border-warning">
+                                <div class="card-header bg-warning text-dark">
+                                    <h6 class="mb-0">Risk Level Thresholds</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Classification System:</strong></p>
+                                    <ul class="mb-0" style="font-size: 0.9rem;">
+                                        <li><span style="color: #e74c3c;">● CRITICAL:</span> Risk Score ≥ 0.8</li>
+                                        <li><span style="color: #f39c12;">● HIGH:</span> Risk Score ≥ 0.6</li>
+                                        <li><span style="color: #f1c40f;">● MEDIUM:</span> Risk Score ≥ 0.4</li>
+                                        <li><span style="color: #27ae60;">● LOW:</span> Risk Score < 0.4</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="card border-info">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0">Data Normalization Process</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Before applying weights, data is normalized to 0-1 scale:</strong></p>
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <p><strong>Accidents:</strong><br>
+                                            Normalized = min(accidents/2000, 1)</p>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <p><strong>Fatalities:</strong><br>
+                                            Normalized = min(fatalities/300, 1)</p>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <p><strong>Injuries:</strong><br>
+                                            Normalized = min(injuries/1500, 1)</p>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">This ensures fair comparison between different metrics with varying scales.</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Section -->
+        <div class="card" id="mapSection" style="display: none;">
+            <div class="card-header">
+                <h5>Map View</h5>
+            </div>
+            <div class="card-body">
+                <div id="mapLoading" style="text-align: center; padding: 20px; color: #666;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading map...</span>
+                    </div>
+                    <p class="mt-2">Loading map...</p>
+                </div>
+                <div id="map" style="display: none;"></div>
+                <div class="mt-2">
+                    <small class="text-muted">Click markers to view city details. Red = Critical, Orange = High, Yellow = Medium, Green = Low risk</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="loading" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Processing data with algorithms...</p>
+        </div>
+        
+        <!-- Footer -->
+        <div class="text-center mt-5 mb-3">
+            <small class="text-muted">
+                Final Year Project - Data Structures & Algorithms Implementation<br>
+                Road Accident Analysis & Black Spot Detection
+            </small>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Font Awesome -->
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
+    <script>
+        // Global variables
+        let accidentData = [];
+        let processedData = [];
+        let map = null;
+        let riskChart = null;
+        let currentSortAlgo = 'bubble';
+
+        // ===== SORTING ALGORITHMS =====
+        
+        function bubbleSort(arr, key) {
+            let n = arr.length;
+            let swapped;
+            
+            do {
+                swapped = false;
+                for (let i = 0; i < n - 1; i++) {
+                    if (arr[i][key] < arr[i + 1][key]) {
+                        let temp = arr[i];
+                        arr[i] = arr[i + 1];
+                        arr[i + 1] = temp;
+                        swapped = true;
+                    }
+                }
+                n--;
+            } while (swapped);
+            
+            return arr;
+        }
+
+        function quickSort(arr, key) {
+            if (arr.length <= 1) return arr;
+            
+            const pivot = arr[Math.floor(arr.length / 2)];
+            const left = [];
+            const right = [];
+            const equal = [];
+            
+            for (let i = 0; i < arr.length; i++) {
+                if (arr[i][key] > pivot[key]) {
+                    left.push(arr[i]);
+                } else if (arr[i][key] < pivot[key]) {
+                    right.push(arr[i]);
+                } else {
+                    equal.push(arr[i]);
+                }
+            }
+            
+            return [...quickSort(left, key), ...equal, ...quickSort(right, key)];
+        }
+
+        function mergeSort(arr, key) {
+            if (arr.length <= 1) return arr;
+            
+            const mid = Math.floor(arr.length / 2);
+            const left = mergeSort(arr.slice(0, mid), key);
+            const right = mergeSort(arr.slice(mid), key);
+            
+            return merge(left, right, key);
+        }
+
+        function merge(left, right, key) {
+            const result = [];
+            let i = 0, j = 0;
+            
+            while (i < left.length && j < right.length) {
+                if (left[i][key] >= right[j][key]) {
+                    result.push(left[i]);
+                    i++;
+                } else {
+                    result.push(right[j]);
+                    j++;
+                }
+            }
+            
+            return result.concat(left.slice(i)).concat(right.slice(j));
+        }
+
+        function heapSort(arr, key) {
+            const heap = [...arr];
+            const n = heap.length;
+            
+            // Build max heap
+            for (let i = Math.floor(n / 2) - 1; i >= 0; i--) {
+                heapify(heap, n, i, key);
+            }
+            
+            // Extract elements from heap
+            for (let i = n - 1; i > 0; i--) {
+                [heap[0], heap[i]] = [heap[i], heap[0]];
+                heapify(heap, i, 0, key);
+            }
+            
+            return heap;
+        }
+
+        function heapify(heap, n, i, key) {
+            let largest = i;
+            const left = 2 * i + 1;
+            const right = 2 * i + 2;
+            
+            if (left < n && heap[left][key] > heap[largest][key]) {
+                largest = left;
+            }
+            
+            if (right < n && heap[right][key] > heap[largest][key]) {
+                largest = right;
+            }
+            
+            if (largest !== i) {
+                [heap[i], heap[largest]] = [heap[largest], heap[i]];
+                heapify(heap, n, largest, key);
+            }
+        }
+
+        // ===== RISK CALCULATION =====
+        
+        function calculateRiskScore(accidents, fatalities, injuries) {
+            const accidentWeight = 0.4;
+            const fatalityWeight = 0.4;
+            const injuryWeight = 0.2;
+            
+            const normalizedAccidents = Math.min(accidents / 2000, 1);
+            const normalizedFatalities = Math.min(fatalities / 300, 1);
+            const normalizedInjuries = Math.min(injuries / 1500, 1);
+            
+            return (normalizedAccidents * accidentWeight + 
+                    normalizedFatalities * fatalityWeight + 
+                    normalizedInjuries * injuryWeight);
+        }
+
+        function getRiskLevel(score) {
+            if (score >= 0.8) return 'CRITICAL';
+            if (score >= 0.6) return 'HIGH';
+            if (score >= 0.4) return 'MEDIUM';
+            return 'LOW';
+        }
+
+        // ===== DATA PROCESSING =====
+        
+        function parseAccidentData(csvData) {
+            const cityMap = {};
+            
+            csvData.forEach(row => {
+                const city = row['Million Plus Cities'] || row['City'] || '';
+                const outcome = row['Outcome of Incident'] || row['Outcome'] || '';
+                const count = parseInt(row['Count'] || 0);
+                
+                if (!city) return;
+                
+                if (!cityMap[city]) {
+                    cityMap[city] = { 
+                        city: city, 
+                        accidents: 0, 
+                        fatalities: 0, 
+                        injuries: 0,
+                        lat: getCityCoordinates(city)[0],
+                        lng: getCityCoordinates(city)[1]
+                    };
+                }
+                
+                if (outcome.toLowerCase().includes('accident')) {
+                    cityMap[city].accidents += count;
+                } else if (outcome.toLowerCase().includes('kill')) {
+                    cityMap[city].fatalities += count;
+                } else if (outcome.toLowerCase().includes('injur')) {
+                    cityMap[city].injuries += count;
+                }
+            });
+            
+            return Object.values(cityMap).map(city => {
+                const riskScore = calculateRiskScore(city.accidents, city.fatalities, city.injuries);
+                const riskLevel = getRiskLevel(riskScore);
+                return {
+                    ...city,
+                    riskScore: riskScore,
+                    riskLevel: riskLevel
+                };
+            });
+        }
+
+        function getCityCoordinates(cityName) {
+            const cityCoords = {
+                'Mumbai': [19.0760, 72.8777],
+                'Delhi': [28.7041, 77.1025],
+                'Bengaluru': [12.9716, 77.5946],
+                'Hyderabad': [17.3850, 78.4867],
+                'Chennai': [13.0827, 80.2707],
+                'Kolkata': [22.5726, 88.3639],
+                'Pune': [18.5204, 73.8567],
+                'Ahmedabad': [23.0225, 72.5714],
+                'Jaipur': [26.9124, 75.7873],
+                'Lucknow': [26.8467, 80.9462],
+                'Agra': [27.1767, 78.0081],
+                'Allahabad(Prayagraj)': [25.4358, 81.8463],
+                'Amritsar': [31.6340, 74.8723]
+            };
+            
+            return cityCoords[cityName] || [20.5937, 78.9629];
+        }
+
+        // ===== UI FUNCTIONS =====
+        
+        function showMessage(message, type = 'success') {
+            const msgDiv = document.getElementById('uploadMessage');
+            msgDiv.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        }
+
+        function showLoading() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        function renderStats() {
+            const statsContainer = document.getElementById('statsContainer');
+            const totalCities = processedData.length;
+            const totalAccidents = processedData.reduce((sum, d) => sum + d.accidents, 0);
+            const totalFatalities = processedData.reduce((sum, d) => sum + d.fatalities, 0);
+            const totalInjuries = processedData.reduce((sum, d) => sum + d.injuries, 0);
+            const criticalSpots = processedData.filter(d => d.riskLevel === 'CRITICAL').length;
+            const highRiskSpots = processedData.filter(d => d.riskLevel === 'HIGH').length;
+            
+            statsContainer.innerHTML = `
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <div class="stats-number">${totalCities}</div>
+                        <div>Cities</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <div class="stats-number">${totalAccidents.toLocaleString()}</div>
+                        <div>Accidents</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <div class="stats-number">${totalFatalities.toLocaleString()}</div>
+                        <div>Fatalities</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <div class="stats-number">${totalInjuries.toLocaleString()}</div>
+                        <div>Injuries</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <div class="stats-number">${criticalSpots}</div>
+                        <div>Critical</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card">
+                        <div class="stats-number">${highRiskSpots}</div>
+                        <div>High Risk</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderBlackSpotAnalysis() {
+            // Get critical and high risk cities
+            const criticalCities = processedData.filter(d => d.riskLevel === 'CRITICAL');
+            const highRiskCities = processedData.filter(d => d.riskLevel === 'HIGH');
+            const totalBlackSpots = criticalCities.length + highRiskCities.length;
+            
+            // Render black spot statistics
+            const blackSpotStats = document.getElementById('blackSpotStats');
+            blackSpotStats.innerHTML = `
+                <div class="col-md-3">
+                    <div class="stats-card" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">
+                        <div class="stats-number">${totalBlackSpots}</div>
+                        <div>Total Black Spots</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card" style="background: linear-gradient(135deg, #c0392b 0%, #8b0000 100%);">
+                        <div class="stats-number">${criticalCities.length}</div>
+                        <div>Critical Spots</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card" style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);">
+                        <div class="stats-number">${highRiskCities.length}</div>
+                        <div>High Risk Areas</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card" style="background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);">
+                        <div class="stats-number">${((totalBlackSpots / processedData.length) * 100).toFixed(1)}%</div>
+                        <div>Black Spot Ratio</div>
+                    </div>
+                </div>
+            `;
+            
+            // Render critical black spots table
+            const criticalBody = document.getElementById('criticalBody');
+            if (criticalCities.length > 0) {
+                criticalBody.innerHTML = criticalCities.map((city, index) => `
+                    <tr>
+                        <td><strong>#${index + 1}</strong></td>
+                        <td><strong style="color: #e74c3c;">🚨 ${city.city}</strong></td>
+                        <td style="color: #e74c3c; font-weight: bold;">${city.accidents.toLocaleString()}</td>
+                        <td style="color: #c0392b; font-weight: bold;">${city.fatalities.toLocaleString()}</td>
+                        <td style="color: #e67e22; font-weight: bold;">${city.injuries.toLocaleString()}</td>
+                        <td style="color: #8e44ad; font-weight: bold;">${city.riskScore.toFixed(3)}</td>
+                        <td>
+                            <span class="badge bg-danger">URGENT</span>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                criticalBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No critical black spots found</td></tr>';
+            }
+            
+            // Render high risk areas table
+            const highRiskBody = document.getElementById('highRiskBody');
+            if (highRiskCities.length > 0) {
+                highRiskBody.innerHTML = highRiskCities.map((city, index) => `
+                    <tr>
+                        <td><strong>#${index + 1}</strong></td>
+                        <td><strong style="color: #f39c12;">⚠️ ${city.city}</strong></td>
+                        <td style="color: #e74c3c; font-weight: bold;">${city.accidents.toLocaleString()}</td>
+                        <td style="color: #c0392b; font-weight: bold;">${city.fatalities.toLocaleString()}</td>
+                        <td style="color: #e67e22; font-weight: bold;">${city.injuries.toLocaleString()}</td>
+                        <td style="color: #8e44ad; font-weight: bold;">${city.riskScore.toFixed(3)}</td>
+                        <td>
+                            <span class="badge bg-warning text-dark">HIGH</span>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                highRiskBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No high risk areas found</td></tr>';
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = processedData.map((row, index) => `
+                <tr>
+                    <td><strong>${row.city}</strong></td>
+                    <td style="color: #e74c3c; font-weight: bold;">${row.accidents.toLocaleString()}</td>
+                    <td style="color: #c0392b; font-weight: bold;">${row.fatalities.toLocaleString()}</td>
+                    <td style="color: #e67e22; font-weight: bold;">${row.injuries.toLocaleString()}</td>
+                    <td style="color: #8e44ad; font-weight: bold;">${row.riskScore.toFixed(3)}</td>
+                    <td>
+                        <span class="badge" style="
+                            background: ${row.riskLevel === 'CRITICAL' ? '#e74c3c' : 
+                                         row.riskLevel === 'HIGH' ? '#f39c12' : 
+                                         row.riskLevel === 'MEDIUM' ? '#f1c40f' : '#27ae60'};
+                            color: white;
+                            padding: 5px 10px;
+                            border-radius: 15px;
+                        ">${row.riskLevel}</span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function sortData() {
+            const sortBy = document.getElementById('sortBy').value;
+            
+            let sortedData;
+            switch (currentSortAlgo) {
+                case 'bubble':
+                    sortedData = bubbleSort([...processedData], sortBy);
+                    break;
+                case 'quick':
+                    sortedData = quickSort([...processedData], sortBy);
+                    break;
+                case 'merge':
+                    sortedData = mergeSort([...processedData], sortBy);
+                    break;
+                case 'heap':
+                    sortedData = heapSort([...processedData], sortBy);
+                    break;
+            }
+            
+            processedData = sortedData;
+            renderBlackSpotAnalysis();
+            renderTable();
+        }
+
+        function changeSortAlgorithm() {
+            currentSortAlgo = document.getElementById('sortAlgo').value;
+            sortData();
+        }
+
+        function renderRiskChart() {
+            const ctx = document.getElementById('riskChart').getContext('2d');
+            
+            if (riskChart) riskChart.destroy();
+            
+            const riskLevels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+            const counts = riskLevels.map(level => 
+                processedData.filter(d => d.riskLevel === level).length
+            );
+            
+            // Calculate percentages
+            const total = counts.reduce((sum, count) => sum + count, 0);
+            const percentages = counts.map(count => 
+                total > 0 ? ((count / total) * 100).toFixed(1) : 0
+            );
+            
+            // Create detailed labels with counts and percentages
+            const labels = riskLevels.map((level, index) => 
+                `${level} (${counts[index]} cities - ${percentages[index]}%)`
+            );
+            
+            if (counts.some(count => count > 0)) {
+                riskChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: counts,
+                            backgroundColor: [
+                                'rgba(76, 175, 80, 0.8)',
+                                'rgba(46, 125, 50, 0.8)',
+                                'rgba(239, 108, 0, 0.8)',
+                                'rgba(198, 40, 40, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgba(76, 175, 80, 1)',
+                                'rgba(46, 125, 50, 1)',
+                                'rgba(239, 108, 0, 1)',
+                                'rgba(198, 40, 40, 1)'
+                            ],
+                            borderWidth: 3,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Risk Level Distribution Analysis',
+                                font: { size: 18, weight: 'bold' },
+                                color: '#333',
+                                padding: 20
+                            },
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 20,
+                                    font: { size: 12, weight: 'bold' },
+                                    usePointStyle: true,
+                                    pointStyle: 'circle'
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed;
+                                        const percentage = percentages[context.dataIndex];
+                                        return `${label}: ${value} cities (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        animation: {
+                            animateRotate: true,
+                            duration: 2000
+                        }
+                    }
+                });
+            }
+        }
+
+        function renderMap() {
+            const mapLoading = document.getElementById('mapLoading');
+            const mapContainer = document.getElementById('map');
+            
+            if (mapLoading) mapLoading.style.display = 'block';
+            if (mapContainer) mapContainer.style.display = 'none';
+            
+            // Remove existing map
+            if (map) {
+                map.remove();
+                map = null;
+            }
+            
+            // Wait for container to be ready
+            setTimeout(() => {
+                try {
+                    if (!mapContainer) {
+                        console.error('Map container not found');
+                        return;
+                    }
+                    
+                    // Initialize map with proper options
+                    map = L.map('map', {
+                        center: [20.5937, 78.9629],
+                        zoom: 5,
+                        zoomControl: true,
+                        attributionControl: true
+                    });
+                    
+                    // Add tile layer
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap contributors',
+                        maxZoom: 18,
+                        minZoom: 2
+                    }).addTo(map);
+                    
+                    // Wait for map to be ready
+                    map.whenReady(() => {
+                        let validMarkers = 0;
+                        const markers = [];
+                        
+                        // Add markers for each city
+                        processedData.forEach((city, index) => {
+                            if (city.lat && city.lng && !isNaN(city.lat) && !isNaN(city.lng)) {
+                                const marker = L.marker([city.lat, city.lng]);
+                                
+                                const popup = `
+                                    <div style="font-family: Arial, sans-serif; min-width: 200px; padding: 10px;">
+                                        <h4 style="margin: 0 0 10px 0; color: #333;">${city.city}</h4>
+                                        <p style="margin: 5px 0;"><strong>Accidents:</strong> ${city.accidents.toLocaleString()}</p>
+                                        <p style="margin: 5px 0;"><strong>Fatalities:</strong> ${city.fatalities.toLocaleString()}</p>
+                                        <p style="margin: 5px 0;"><strong>Injuries:</strong> ${city.injuries.toLocaleString()}</p>
+                                        <p style="margin: 5px 0;"><strong>Risk Score:</strong> ${city.riskScore.toFixed(3)}</p>
+                                        <p style="margin: 5px 0;"><strong>Risk Level:</strong> ${city.riskLevel}</p>
+                                    </div>
+                                `;
+                                marker.bindPopup(popup);
+                                
+                                const colors = {
+                                    'CRITICAL': '#c62828',
+                                    'HIGH': '#ef6c00',
+                                    'MEDIUM': '#2e7d32',
+                                    'LOW': '#388e3c'
+                                };
+                                
+                                const icon = L.divIcon({
+                                    className: 'custom-marker',
+                                    html: `<div style="
+                                        background-color: ${colors[city.riskLevel]}; 
+                                        width: 20px; 
+                                        height: 20px; 
+                                        border-radius: 50%; 
+                                        border: 3px solid white;
+                                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                                    "></div>`,
+                                    iconSize: [20, 20],
+                                    iconAnchor: [10, 10]
+                                });
+                                
+                                marker.setIcon(icon);
+                                marker.addTo(map);
+                                markers.push(marker);
+                                validMarkers++;
+                            }
+                        });
+                        
+                        // Adjust map view to show all markers
+                        if (validMarkers > 0) {
+                            const group = new L.featureGroup(markers);
+                            map.fitBounds(group.getBounds().pad(0.1));
+                        } else {
+                            map.setView([20.5937, 78.9629], 5);
+                        }
+                        
+                        // Hide loading and show map
+                        if (mapLoading) mapLoading.style.display = 'none';
+                        if (mapContainer) mapContainer.style.display = 'block';
+                        
+                        // Force map to resize
+                        setTimeout(() => {
+                            if (map) {
+                                map.invalidateSize();
+                            }
+                        }, 100);
+                        
+                        console.log(`Map rendered with ${validMarkers} markers`);
+                    });
+                    
+                } catch (error) {
+                    console.error('Error rendering map:', error);
+                    if (mapLoading) mapLoading.style.display = 'none';
+                    if (mapContainer) {
+                        mapContainer.style.display = 'block';
+                        mapContainer.innerHTML = `
+                            <div style="padding: 20px; text-align: center; color: #666;">
+                                <h4>Map Loading Error</h4>
+                                <p>Unable to load the map. Please check your internet connection.</p>
+                                <button class="btn btn-primary mt-2" onclick="renderMap()">Retry</button>
+                            </div>
+                        `;
+                    }
+                }
+            }, 300); // Increased delay to ensure container is ready
+        }
+
+        // ===== MAIN ANALYSIS FUNCTION =====
+        
+        function analyzeData() {
+            const file = document.getElementById('csvFile').files[0];
+            
+            if (!file) {
+                showMessage('Please select a CSV file first.', 'warning');
+                return;
+            }
+            
+            showLoading();
+            showMessage('Processing data with algorithms...', 'info');
+            
+            try {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        if (results.errors.length > 0) {
+                            showMessage('Error parsing CSV: ' + results.errors[0].message, 'danger');
+                            hideLoading();
+                            return;
+                        }
+                        
+                        accidentData = results.data.filter(row => 
+                            Object.values(row).some(val => val !== null && val !== '')
+                        );
+                        
+                        if (accidentData.length === 0) {
+                            showMessage('No data found in the CSV file.', 'warning');
+                            hideLoading();
+                            return;
+                        }
+                        
+                        processedData = parseAccidentData(accidentData);
+                        
+                        if (processedData.length === 0) {
+                            showMessage('No valid accident data found in the CSV file.', 'warning');
+                            hideLoading();
+                            return;
+                        }
+                        
+                        renderStats();
+                        renderBlackSpotAnalysis();
+                        renderTable();
+                        renderRiskChart();
+                        
+                        // Show sections first
+                        document.getElementById('statsSection').style.display = 'block';
+                        document.getElementById('blackSpotSection').style.display = 'block';
+                        document.getElementById('controlsSection').style.display = 'block';
+                        document.getElementById('tableSection').style.display = 'block';
+                        document.getElementById('chartsSection').style.display = 'block';
+                        document.getElementById('mapSection').style.display = 'block';
+                        
+                        // Render map after sections are visible
+                        setTimeout(() => {
+                            renderMap();
+                        }, 500);
+                        
+                        hideLoading();
+                        showMessage('Analysis completed successfully!', 'success');
+                    },
+                    error: function(error) {
+                        showMessage('Error reading file: ' + error.message, 'danger');
+                        hideLoading();
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Analysis error:', error);
+                showMessage('Error during analysis: ' + error.message, 'danger');
+                hideLoading();
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Road Accident Analysis System initialized');
+        });
+    </script>
+</body>
+</html>
